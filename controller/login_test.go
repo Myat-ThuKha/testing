@@ -50,3 +50,25 @@ func TestLogin_Success(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "access_token")
 }
+
+func TestLogin_MissingUsername(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db, err := database.ConnectMongo()
+	assert.NoError(t, err)
+
+	clearUsers(t, db)
+	seedTestUser(t, db)
+
+	router := gin.Default()
+	router.POST("/login", LoginHandler(db))
+
+	body := `{"password":"mypassword"}`
+	req := httptest.NewRequest("POST", "/login", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "invalid input")
+}
