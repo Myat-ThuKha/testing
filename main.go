@@ -1,10 +1,18 @@
 package main
 
-import "fmt"
+import (
+	"testing-api/controller"
+	"testing-api/database"
+
+	"github.com/gin-gonic/gin"
+)
 
 func main() {
-	fmt.Println("Hello!")
-	x := 2
-	y := 3
-	fmt.Println(x + y)
+	db, err := database.ConnectMongo()
+	if err != nil {
+		panic(err)
+	}
+	r := gin.Default()
+	r.POST("/login", controller.LoginHandler(db))
+	r.Run()
 }
