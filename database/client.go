@@ -2,9 +2,10 @@ package database
 
 import (
 	"context"
-	"os"
+	"fmt"
 	"time"
 
+	"go.mongodb.org/mongo-driver/event"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -14,8 +15,20 @@ type DB struct {
 	Name   string
 }
 
+var MONGO_URI = "mongodb://localhost:27017"
+
 func ConnectMongo() (*DB, error) {
-	client, err := mongo.NewClient(options.Client().ApplyURI(os.Getenv("MONGO_URI")))
+	monitor := &event.CommandMonitor{
+		Started: func(_ context.Context, evt *event.CommandStartedEvent) {
+			fmt.Printf("Captured command: %v\n", evt.Command)
+		},
+	}
+
+	// if uri := os.Getenv("MONGO_URI"); uri != "" {
+	// 	MONGO_URI = uri
+	// }
+
+	client, err := mongo.NewClient(options.Client().ApplyURI(MONGO_URI).SetMonitor(monitor))
 	if err != nil {
 		return nil, err
 	}

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"testing-api/database"
+	"testing-api/model"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -47,6 +48,11 @@ func TestLogin_Success(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
+	userCollection := db.Client.Database(db.Name).Collection("users")
+	var user model.User
+	err = userCollection.FindOne(context.TODO(), bson.M{"username": "testuser"}).Decode(&user)
+	assert.NoError(t, err, "User should be found in the database")
+
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "access_token")
 }
@@ -64,10 +70,15 @@ func TestLogin_MissingUsername(t *testing.T) {
 
 	body := `{"password":"mypassword"}`
 	req := httptest.NewRequest("POST", "/login", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Conte nt-Type", "application/json")
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
+
+	userCollection := db.Client.Database(db.Name).Collection("users")
+	var user model.User
+	err = userCollection.FindOne(context.TODO(), bson.M{"username": ""}).Decode(&user)
+	assert.NoError(t, err, "User should be found in the database")
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), "invalid input")
