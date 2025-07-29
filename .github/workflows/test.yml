@@ -8,56 +8,71 @@ on:
 
 jobs:
   integration-tests:
-    runs-on: ubuntu-24.04
-    container: cgr.dev/chainguard/go:latest
-
-    env:
-      MONGO_URI: mongodb://mongodb:27017/test?replicaSet=rs0
-      ELASTIC_URI: http://elasticsearch:9200
+    runs-on: ubuntu-latest
 
     services:
-        mongodb:
-          image: mongo:7.0
-          ports:
-            - 27017:27017
-          options: >-
-            --health-cmd="echo 'db.runCommand({ ping: 1 })' | mongosh localhost:27017/test --quiet"
-            --health-interval 10s
-            --health-timeout 5s
-            --health-retries 5
-            --entrypoint """
+      # mongodb:
+      #   image: mongo:7.0
+      #   ports:
+      #     - 27017:27017
+      #   options: >-
+      #     --health-cmd="echo 'db.runCommand({ ping: 1 })' | mongosh localhost:27017/test --quiet"
+      #     --health-interval 10s
+      #     --health-timeout 5s
+      #     --health-retries 5
 
-
-        elasticsearch:
-            image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
-            ports:
-            - 9800:9200
-            options: --health-cmd="curl http://localhost:9200/_cluster/health" -e "discovery.type=single-node" -e "xpack.security.enabled=false"
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+        ports:
+          - 9800:9200
+        options: >-
+          --health-cmd="curl http://localhost:9200/_cluster/health"
+          -e "discovery.type=single-node"
+          -e "xpack.security.enabled=false"
 
     steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      
-      - name: Install mongosh
-        run: |
-          sudo apt-get install gnupg
-          wget -qO- https://www.mongodb.org/static/pgp/server-7.0.asc | sudo tee /etc/apt/trusted.gpg.d/server-7.0.asc
-          echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
-          sudo apt-get update
-          sudo apt-get install -y mongodb-mongosh
-          mongosh --version
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Pull MongoDB Docker Image
+        run: docker pull mongo:7.0
+
+      - name: Start MongoDB Service with replica set
+        run: docker run -d --name mongodb --rm -p 27018:27017 mongo:7.0 --replSet rs0 --bind_ip_all
+      # - name: Install mongosh
+      #   run: |
+      #     sudo apt-get install -y gnupg wget
+      #     wget -qO- https://www.mongodb.org/static/pgp/server-7.0.asc | sudo tee /etc/apt/trusted.gpg.d/server-7.0.asc
+      #     echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+      #     sudo apt-get update
+      #     sudo apt-get install -y mongodb-mongosh
+      #     mongosh --version
 
       - name: Initialize MongoDB Replica Set
+        # run: |
+        #   sleep 10  # Wait for Mongo to boot
+        #   mongosh --host localhost:27017 --eval '
+        #     rs.initiate({
+        #       _id: "rs0",
+        #       members: [ { _id: 0, host: "localhost:27017" } ]
+        #     })'
         run: |
-          mongosh --host localhost:27017 --eval '
+          sleep 10
+          docker exec mongodb mongosh --eval '
             rs.initiate({
               _id: "rs0",
               members: [ { _id: 0, host: "localhost:27017" } ]
-            })
+            })'
 
       - name: Download dependencies
         run: go mod download
 
       - name: Run Integration Tests
         run: go test -v ./...
+
+      - name: Stop MongoDB Service
+        run: docker stop mongodb || true
